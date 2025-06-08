@@ -1,0 +1,22 @@
+name: Run Python Script
+
+# Triggers on every push, and also allows manual runs
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  python-job:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Run your script
+        run: python hello.py

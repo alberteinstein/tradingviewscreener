@@ -10,6 +10,10 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v3
+        with:
+          # ensure we have full history so pushes work
+          fetch-depth: 0
+          persist-credentials: true
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -23,11 +27,11 @@ jobs:
 
       - name: Run screener
         run: python run_screener.py
-        - name: Commit results
-          run: |
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add screener_results.csv
-            git commit -m "Update screener results [skip ci]" || echo "No changes to commit"
-            git push
 
+      - name: Commit results
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add screener_results.csv
+          git commit -m "Update screener results [skip ci]" || echo "No changes to commit"
+          git push

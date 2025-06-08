@@ -23,3 +23,11 @@ jobs:
 
       - name: Run screener
         run: python run_screener.py
+        - name: Commit results
+          run: |
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add screener_results.csv
+            git commit -m "Update screener results [skip ci]" || echo "No changes to commit"
+            git push
+

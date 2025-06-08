@@ -12,10 +12,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # ─── Configuration ───────────────────────────────────────────────────────────────
 
-# Local timezone for timestamping
-LOCAL_TZ = pytz.timezone('Europe/Berlin')  # adjust if needed
+LOCAL_TZ = pytz.timezone('Europe/Berlin')
 
-# QuickFS API fields and headers
 _QFS_FIELDS = [
     "qfs_symbol", "name", "symbol", "exchange", "country", "currency",
     "sector", "industry", "price", "mkt_cap", "pe", "pb", "ps",
@@ -31,7 +29,6 @@ _QFS_HEADERS = {
 # ─── Screener Query ─────────────────────────────────────────────────────────────
 
 def fetch_tradingview():
-    """Run TradingView screener and return a cleaned DataFrame."""
     result = (
         Query()
         .select(
@@ -55,11 +52,7 @@ def fetch_tradingview():
     )
 
     df = result[1]
-
-    # Normalize list/dict cells to strings
     df = df.applymap(lambda x: str(x) if isinstance(x, (list, dict)) else x)
-
-    # Convert epoch timestamps to readable dates
     df['earnings_release_date'] = (
         pd.to_datetime(df['earnings_release_date'], unit='s')
           .dt.strftime('%Y-%m-%d %H:%M:%S')
@@ -68,18 +61,14 @@ def fetch_tradingview():
         pd.to_datetime(df['earnings_release_next_date'], unit='s')
           .dt.strftime('%Y-%m-%d %H:%M:%S')
     )
-
-    # Clean infinities and NaNs
     df = df.replace([np.inf, -np.inf], np.nan).fillna('')
 
-    # Extract index names from nested structures
     def extract_index_names(val):
         if isinstance(val, list):
             return ', '.join(item.get('name', '') for item in val)
         if isinstance(val, dict):
             return val.get('name', '')
         try:
-            # maybe a stringified list/dict
             parsed = pd.io.json.loads(val)
             if isinstance(parsed, list):
                 return ', '.join(i.get('name', '') for i in parsed)
@@ -90,21 +79,13 @@ def fetch_tradingview():
         return ''
 
     df['indexes'] = df['indexes'].apply(extract_index_names)
-
-    # Add a retrieval timestamp
     now = datetime.now(LOCAL_TZ).strftime('%Y-%m-%d %H:%M:%S')
     df.insert(0, 'retrieval_time', now)
-
     return df
 
 # ─── QuickFS Metadata Fetch ────────────────────────────────────────────────────
 
 def fetch_all_with_us(df, symbol_col="symbol", country_col=None, max_workers=30):
-    """
-    For each ticker in df[symbol_col], fetch metadata from QuickFS and
-    return a combined DataFrame prefixed with 'qfs_'.
-    """
-    # build list of (symbol, country) pairs
     if country_col and country_col in df.columns:
         pairs = list(df[[symbol_col, country_col]].itertuples(index=False, name=None))
     else:
@@ -139,29 +120,27 @@ def fetch_all_with_us(df, symbol_col="symbol", country_col=None, max_workers=30)
             results[futures[fut]] = fut.result()
 
     meta_df = pd.DataFrame(results).rename(columns=lambda c: f"qfs_{c}")
-    # Convert date fields
     for col in ("qfs_dividend_date", "qfs_ex_dividend_date"):
         if col in meta_df:
             meta_df[col] = (
                 pd.to_datetime(meta_df[col], format="%Y%m%d", errors="coerce")
                   .dt.strftime("%Y-%m-%d")
             )
-
     return pd.concat([df.reset_index(drop=True), meta_df], axis=1)
 
 # ─── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
-    # 1) Run the TradingView screener
     df = fetch_tradingview()
-
-    # 2) Fetch QuickFS metadata by ticker name
     df2 = fetch_all_with_us(df, symbol_col="name")
-
-    # 3) Final clean-up: replace any remaining infs/nans
     df2 = df2.replace([np.inf, -np.inf], np.nan).fillna('')
 
-    # 4) Output: here we just print the first few rows
+    # — SAVE TO CSV FOR GITHUB —──────────────────────────────────────────────────
+    output_file = 'screener_results.csv'
+    df2.to_csv(output_file, index=False)
+    print(f"✅ Saved screener results to {output_file}")
+
+    # Print a preview
     print(df2.head().to_string(index=False))
 
 if __name__ == "__main__":

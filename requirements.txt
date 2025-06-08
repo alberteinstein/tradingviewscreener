@@ -1,0 +1,5 @@
+tradingview-screener
+pandas
+numpy
+pytz
+requests
